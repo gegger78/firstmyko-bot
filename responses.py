@@ -6,6 +6,7 @@ import re
 
 from firstmyko_bot.ai_responder import generate_answer
 from firstmyko_bot.config import BRAND_COLOR, LINKS
+from firstmyko_bot.faq import match_faq
 from firstmyko_bot.forum_search import search_forum_live
 from firstmyko_bot.i18n import (
     FOOTER,
@@ -93,10 +94,24 @@ def _build_embed_dict(
 def build_player_response(question: str) -> dict:
     """Discord embed dict dondurur."""
     lang = detect_language(question)
-    topics = search_topics(question, limit=5)
 
-    if not topics:
-        topics = search_forum_live(question, limit=3)
+    # 1) Hazir FAQ / web / forum kategori eslesmesi
+    faq_body, faq_link = match_faq(question)
+    if faq_body:
+        return _build_embed_dict(lang, question, faq_body, faq_link)
+
+    # 2) Forum konu arama
+    local = search_topics(question, limit=5)
+    live = search_forum_live(question, limit=5)
+
+    # En iyi eslesmeyi birlestir (canli arama oncelikli)
+    seen: set[str] = set()
+    topics: list[dict] = []
+    for t in live + local:
+        url = t.get("url", "")
+        if url and url not in seen:
+            seen.add(url)
+            topics.append(t)
 
     best = topics[0] if topics else None
     rest = topics[1:3] if len(topics) > 1 else []
