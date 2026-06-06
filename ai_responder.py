@@ -1,12 +1,18 @@
-"""OpenAI ile forum bilgisi destekli cevap uretimi."""
+"""OpenAI veya Google Gemini ile forum bilgisi destekli cevap uretimi."""
 
 from __future__ import annotations
 
 import logging
 
-from openai import OpenAI
-
-from firstmyko_bot.config import AI_ENABLED, LINKS, OPENAI_API_KEY, OPENAI_MODEL
+from firstmyko_bot.config import (
+    AI_ENABLED,
+    AI_ENGINE,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    LINKS,
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+)
 from firstmyko_bot.i18n import GREETING, detect_language
 from firstmyko_bot.knowledge import format_topic_context, search_topics
 
@@ -18,6 +24,14 @@ LANG_NAMES = {
     "es": "Spanish (Latin America / Peru)",
     "ar": "Arabic",
 }
+
+
+def ai_provider_label() -> str:
+    if AI_ENGINE == "gemini":
+        return f"Aktif (Gemini {GEMINI_MODEL})"
+    if AI_ENGINE == "openai":
+        return f"Aktif (OpenAI {OPENAI_MODEL})"
+    return "Kapali — GEMINI_API_KEY veya OPENAI_API_KEY ekleyin"
 
 
 def _system_prompt(lang: str) -> str:
@@ -46,6 +60,53 @@ Resmi linkler:
 """
 
 
+def _fallback_answer(lang: str, topics: list[dict]) -> tuple[str, list[dict]]:
+    if topics:
+        lines = [GREETING.get(lang, GREETING["tr"]), ""]
+        for t in topics[:2]:
+            lines.append(f"📌 **{t['title']}**")
+            lines.append(f"🔗 {t['url']}\n")
+        return "\n".join(lines), topics
+    return (
+        f"{GREETING.get(lang, GREETING['tr'])}\n\nForum: {LINKS['forum']}",
+        [],
+    )
+
+
+def _call_gemini(system: str, user: str) -> str:
+    import google.generativeai as genai
+
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=system,
+    )
+    response = model.generate_content(
+        user,
+        generation_config={
+            "max_output_tokens": 900,
+            "temperature": 0.4,
+        },
+    )
+    return (response.text or "").strip()
+
+
+def _call_openai(system: str, user: str) -> str:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        max_tokens=900,
+        temperature=0.4,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
 def generate_answer(
     question: str,
     lang: str | None = None,
@@ -59,19 +120,9 @@ def generate_answer(
     context = format_topic_context(topics)
 
     if not AI_ENABLED:
-        if topics:
-            lines = [GREETING.get(lang, GREETING["tr"]), ""]
-            for t in topics[:2]:
-                lines.append(f"📌 **{t['title']}**")
-                lines.append(f"🔗 {t['url']}\n")
-            return "\n".join(lines), topics
-        return (
-            f"{GREETING.get(lang, GREETING['tr'])}\n\n"
-            f"Forum: {LINKS['forum']}",
-            [],
-        )
+        return _fallback_answer(lang, topics)
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    system = _system_prompt(lang)
     user_prompt = (
         f"Kullanici sorusu: {question}\n\n"
         f"Forum bilgi tabani:\n{context}\n\n"
@@ -80,22 +131,11 @@ def generate_answer(
     )
 
     try:
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": _system_prompt(lang)},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=900,
-            temperature=0.4,
-        )
-        answer = response.choices[0].message.content or ""
-        return answer.strip(), topics
+        if AI_ENGINE == "gemini":
+            answer = _call_gemini(system, user_prompt)
+        else:
+            answer = _call_openai(system, user_prompt)
+        return answer, topics
     except Exception as exc:
-        logger.exception("OpenAI hatasi: %s", exc)
-        if topics:
-            lines = [GREETING.get(lang, GREETING["tr"]), ""]
-            for t in topics[:2]:
-                lines.append(f"📌 **{t['title']}** — {t['url']}")
-            return "\n".join(lines), topics
-        return f"Forum: {LINKS['forum']}", []
+        logger.exception("AI hatasi (%s): %s", AI_ENGINE, exc)
+        return _fallback_answer(lang, topics)
