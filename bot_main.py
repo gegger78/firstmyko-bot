@@ -279,6 +279,8 @@ async def forum_sync_loop() -> None:
 @forum_sync_loop.before_loop
 async def before_sync() -> None:
     await bot.wait_until_ready()
+    # Bot once mesajlara cevap versin, ilk senkron 2 dk sonra
+    await asyncio.sleep(120)
     logger.info("Ilk forum senkronu...")
     await asyncio.to_thread(sync_forums)
 
