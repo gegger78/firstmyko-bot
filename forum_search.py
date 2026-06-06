@@ -1,15 +1,20 @@
-"""Canli forum arama — tum kategoriler + konu basliklari."""
+"""Canli forum arama — yalnizca ilgili kategoriler, paralel istek."""
 
 from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-from firstmyko_bot.config import FORUMS
+from firstmyko_bot.config import (
+    FORUMS,
+    LIVE_FORUM_MAX_CATEGORIES,
+    LIVE_FORUM_TIMEOUT,
+)
 from firstmyko_bot.forum_catalog import FORUM_CATEGORIES, forum_url
 from firstmyko_bot.knowledge import _expand_query_tokens, _normalize, _tokenize
 
@@ -45,8 +50,17 @@ CATEGORY_HINTS: list[dict] = [
     },
 ]
 
+# Anahtar kelime eslesmezse taranacak varsayilan kategoriler
+DEFAULT_FORUM_SLUGS = (
+    "firstmyko-oyun-rehberi.37",
+    "hata-ve-cozumler.15",
+    "yenilikler-ve-detaylari.10",
+    "master-ve-skill-gorevleri.14",
+)
+
 _forum_cache: list[dict] | None = None
 _forum_cache_at: float = 0.0
+_forum_by_slug: dict[str, dict] | None = None
 
 
 def _discover_forums() -> list[dict]:
@@ -60,6 +74,61 @@ def _discover_forums() -> list[dict]:
     return _forum_cache
 
 
+def _forums_by_slug() -> dict[str, dict]:
+    global _forum_by_slug
+    if _forum_by_slug is None:
+        _forum_by_slug = {}
+        for forum in _discover_forums():
+            url = forum.get("url", "")
+            for cat in FORUM_CATEGORIES:
+                slug = cat["slug"]
+                if slug in url:
+                    _forum_by_slug[slug] = forum
+                    break
+    return _forum_by_slug
+
+
+def _rank_forums_for_query(query_norm: str, query_tokens: set[str], max_forums: int) -> list[dict]:
+    """Soruya en uygun birkaç forum kategorisi sec (36 yerine 3-4)."""
+    by_slug = _forums_by_slug()
+    ranked: list[tuple[float, str]] = []
+
+    for cat in FORUM_CATEGORIES:
+        slug = cat["slug"]
+        if slug not in by_slug:
+            continue
+        score = 0.0
+        for kw in cat["keywords"]:
+            if kw in query_norm:
+                score += len(kw.split()) * 3 + 2
+            else:
+                kw_tokens = _tokenize(kw)
+                overlap = query_tokens & kw_tokens
+                if overlap:
+                    score += len(overlap) * 2
+
+        name_norm = _normalize(cat["name"])
+        name_tokens = _tokenize(name_norm)
+        score += len(query_tokens & name_tokens) * 1.5
+
+        if score > 0:
+            ranked.append((score, slug))
+
+    ranked.sort(key=lambda x: x[0], reverse=True)
+
+    chosen_slugs: list[str] = []
+    for _, slug in ranked:
+        if slug not in chosen_slugs:
+            chosen_slugs.append(slug)
+        if len(chosen_slugs) >= max_forums:
+            break
+
+    if not chosen_slugs:
+        chosen_slugs = list(DEFAULT_FORUM_SLUGS[:max_forums])
+
+    return [by_slug[s] for s in chosen_slugs if s in by_slug]
+
+
 def _score_match(query_tokens: set[str], query_norm: str, title: str) -> float:
     title_norm = _normalize(title)
     title_tokens = _tokenize(title)
@@ -68,7 +137,6 @@ def _score_match(query_tokens: set[str], query_norm: str, title: str) -> float:
 
     overlap = query_tokens & title_tokens
     if not overlap:
-        # Kismi eslesme: "cozumler" ~ "cozum"
         for qt in query_tokens:
             for tt in title_tokens:
                 if len(qt) >= 4 and (qt in tt or tt in qt):
@@ -78,7 +146,6 @@ def _score_match(query_tokens: set[str], query_norm: str, title: str) -> float:
 
     score = len(overlap) * 2 + len(overlap & title_tokens) * 3
 
-    # Baslik neredeyse ayni soru
     if query_norm in title_norm or title_norm in query_norm:
         score += 10
 
@@ -116,62 +183,71 @@ def _scrape_forum_threads(forum: dict, query_tokens: set[str], query_norm: str) 
     results: list[tuple[float, dict]] = []
     seen: set[str] = set()
 
-    for page in range(1, 4):
-        page_url = forum["url"] if page == 1 else f"{forum['url']}page-{page}"
-        try:
-            resp = requests.get(page_url, headers=HEADERS, timeout=20)
-            if resp.status_code == 404:
-                break
-            resp.raise_for_status()
-        except requests.RequestException:
-            break
+    page_url = forum["url"]
+    try:
+        resp = requests.get(page_url, headers=HEADERS, timeout=LIVE_FORUM_TIMEOUT)
+        if resp.status_code == 404:
+            return results
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        logger.debug("Forum taranamadi %s: %s", page_url, exc)
+        return results
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        links = soup.select(".structItem-title a")
-        if not links:
-            break
+    soup = BeautifulSoup(resp.text, "html.parser")
+    links = soup.select(".structItem-title a")
+    if not links:
+        return results
 
-        for link in links:
-            title = link.get_text(strip=True)
-            href = link.get("href", "")
-            if not title or "/threads/" not in href:
-                continue
-            full_url = urljoin(BASE, href)
-            if full_url in seen:
-                continue
-            score = _score_match(query_tokens, query_norm, title)
-            if score <= 0:
-                continue
-            seen.add(full_url)
-            results.append(
-                (
-                    score,
-                    {
-                        "title": title,
-                        "url": full_url,
-                        "forum": forum.get("name", ""),
-                        "content": "",
-                    },
-                )
+    for link in links:
+        title = link.get_text(strip=True)
+        href = link.get("href", "")
+        if not title or "/threads/" not in href:
+            continue
+        full_url = urljoin(BASE, href)
+        if full_url in seen:
+            continue
+        score = _score_match(query_tokens, query_norm, title)
+        if score <= 0:
+            continue
+        seen.add(full_url)
+        results.append(
+            (
+                score,
+                {
+                    "title": title,
+                    "url": full_url,
+                    "forum": forum.get("name", ""),
+                    "content": "",
+                },
             )
+        )
 
     return results
 
 
 def search_forum_live(query: str, limit: int = 5) -> list[dict]:
-    """Tum forum kategorilerinde konu basligi ara."""
+    """Iliskili forum kategorilerinde konu basligi ara (hizli mod)."""
     query_norm = _normalize(query)
     raw_tokens = _tokenize(query)
     query_tokens = _expand_query_tokens(raw_tokens)
     if not query_tokens:
         return []
 
+    forums = _rank_forums_for_query(query_norm, query_tokens, LIVE_FORUM_MAX_CATEGORIES)
     found: list[tuple[float, dict]] = []
 
-    for forum in _discover_forums():
-        found.extend(_scrape_forum_threads(forum, query_tokens, query_norm))
+    workers = min(len(forums), 4)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_scrape_forum_threads, forum, query_tokens, query_norm): forum
+            for forum in forums
+        }
+        for future in as_completed(futures):
+            try:
+                found.extend(future.result())
+            except Exception:
+                logger.exception("Canli forum arama hatasi")
 
-    # Kategori sayfasi — sadece genel sorularda (ornek: "hata ve cozumler")
     category = _match_category(query_tokens)
     if category:
         if _is_broad_category_query(raw_tokens):
@@ -185,7 +261,6 @@ def search_forum_live(query: str, limit: int = 5) -> list[dict]:
 
     found.sort(key=lambda x: x[0], reverse=True)
 
-    # Tekrarlayan URL kaldir
     out: list[dict] = []
     seen_urls: set[str] = set()
     for _, topic in found:
