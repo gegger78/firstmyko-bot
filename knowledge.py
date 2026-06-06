@@ -18,6 +18,7 @@ QUERY_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "upgrade": ("upgrade", "anvil", "oran", "basma", "scroll", "arti", "item"),
     "master": ("master", "gorev", "quest", "skill", "level"),
     "skill": ("skill", "stat", "yetenek", "master", "gorev"),
+    "hata": ("hata", "cozum", "cozumler", "error", "sorun", "problem", "fix", "dll", "dc"),
     "cekilis": ("cekilis", "hediye", "giveaway", "odul", "etkinlik"),
     "pus": ("pus", "power", "store", "market", "cash"),
     "party": ("party", "grup", "takim", "lider"),
@@ -34,7 +35,8 @@ def _normalize(text: str) -> str:
 
 def _tokenize(text: str) -> set[str]:
     words = re.findall(r"[a-z0-9]+", _normalize(text))
-    return {w for w in words if len(w) > 2}
+    keep_short = {"dc", "ko", "ko", "pus", "fb", "ig"}
+    return {w for w in words if len(w) > 2 or w in keep_short}
 
 
 def _expand_query_tokens(query_tokens: set[str]) -> set[str]:

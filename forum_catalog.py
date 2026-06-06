@@ -10,7 +10,7 @@ FORUM_CATEGORIES: list[dict] = [
     {"slug": "firstmyko-oyun-rehberi.37", "name": "FIRSTMYKO Oyun Rehberi", "keywords": ("oyun rehberi", "rehber", "guide")},
     {"slug": "yenilikler-ve-detaylari.10", "name": "Yenilikler ve Detaylari", "keywords": ("yenilik", "detay", "guncelleme", "update", "ozellik")},
     {"slug": "gunluk-collection-race-etkinlikleri.25", "name": "Gunluk Collection Race", "keywords": ("collection race", "gunluk collection", "cr event")},
-    {"slug": "oyun-ici-eventler.11", "name": "Oyun Ici Eventler", "keywords": ("event", "etkinlik", "chaos", "lottery", "war event", "cz event")},
+    {"slug": "oyun-ici-eventler.11", "name": "Oyun Ici Eventler", "keywords": ("event", "etkinlik", "chaos", "lottery", "war event", "cz event", "carkifelek", "wheel of fun", "carki felek")},
     {"slug": "power-up-store.12", "name": "Power UP Store (TR)", "keywords": ("pus", "power up store", "cash", "market")},
     {"slug": "sosyal-medya-etkinlikleri.13", "name": "Sosyal Medya Etkinlikleri", "keywords": ("sosyal medya", "instagram etkinlik", "facebook etkinlik")},
     {"slug": "master-ve-skill-gorevleri.14", "name": "Master ve Skill Gorevleri", "keywords": ("master gorev", "skill gorev", "master ve skill")},
