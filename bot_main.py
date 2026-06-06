@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
 
-from firstmyko_bot.ai_responder import generate_answer
 from firstmyko_bot.config import (
     ADMIN_ROLE_ID,
     AI_ENABLED,
@@ -32,6 +31,7 @@ from firstmyko_bot.config import (
 )
 from firstmyko_bot.forum_sync import load_knowledge, sync_forums
 from firstmyko_bot.knowledge import detect_quick_reply, is_question
+from firstmyko_bot.responses import build_player_response
 
 logging.basicConfig(
     level=logging.INFO,
@@ -164,8 +164,9 @@ async def cmd_help(ctx: commands.Context) -> None:
     embed.add_field(
         name="Soru sorma",
         value=(
-            "Genel sohbette soru sor (ornek: *upgrade oranlari kac?*)\n"
-            "Bot forum bilgisine gore cevap verir."
+            "Genel sohbette soru sor (ornek: *upgrade oranlari nelerdir?*)\n"
+            "Bot forumdan tam konu linkini gonderir.\n"
+            "**Diller:** Turkce, English, Espanol, Arabic"
         ),
         inline=False,
     )
@@ -238,28 +239,24 @@ async def on_message(message: discord.Message) -> None:
         return
 
     mentioned = bot.user and bot.user in message.mentions
-    question = is_question(message.content) or mentioned
+    quick = detect_quick_reply(message.content)
+    # Soru degilse bile "yenilik", "pus", "cekilis" gibi anahtar kelimelerde cevap ver
+    should_reply = is_question(message.content) or mentioned or bool(quick)
 
-    if not question:
+    if not should_reply:
         return
 
     if _on_cooldown(message.author.id):
         return
 
-    quick = detect_quick_reply(message.content)
     if quick:
         await message.reply(quick, mention_author=False)
         return
 
     async with message.channel.typing():
-        answer, _topics = await asyncio.to_thread(generate_answer, message.content)
+        embed_data = await asyncio.to_thread(build_player_response, message.content)
 
-    embed = discord.Embed(
-        description=answer[:4096],
-        color=BRAND_COLOR,
-    )
-    embed.set_author(name="FIRSTMYKO Asistan")
-    embed.set_footer(text="Detaylar icin forum | firstmyko.net")
+    embed = discord.Embed.from_dict(embed_data)
 
     try:
         await message.reply(embed=embed, mention_author=False)
@@ -317,6 +314,13 @@ def main() -> None:
         bot.run(DISCORD_BOT_TOKEN)
     except discord.LoginFailure:
         print("\n[HATA] Gecersiz bot token. Developer Portal -> Reset Token\n")
+        sys.exit(1)
+    except discord.PrivilegedIntentsRequired:
+        print("\n[HATA] Privileged Intent acilmamis!")
+        print(" Discord Developer Portal -> Bot -> Privileged Gateway Intents:")
+        print("   1. SERVER MEMBERS INTENT  -> AC")
+        print("   2. MESSAGE CONTENT INTENT -> AC")
+        print(" Kaydet -> Render'da Manual Deploy yap.\n")
         sys.exit(1)
     except Exception:
         import traceback
