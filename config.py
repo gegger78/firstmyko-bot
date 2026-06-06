@@ -64,6 +64,8 @@ AI_ENABLED = AI_ENGINE is not None
 # Forum senkron
 FORUM_SYNC_INTERVAL_HOURS = max(_env_float("FORUM_SYNC_INTERVAL_HOURS", 2.0), 0.25)
 
+from firstmyko_bot.forum_catalog import build_forums_sync_list
+
 # Linkler
 LINKS = {
     "forum": "https://firstmyko.net/",
@@ -71,30 +73,29 @@ LINKS = {
     "instagram": "https://www.instagram.com/firstmyko/",
     "facebook": "https://www.facebook.com/FirstMykoo",
     "whatsapp": "https://chat.whatsapp.com/LEL6u1kq8bMLpmi8UubOEt",
+    "epin_bayi": "https://www.haydargame.com/",
+    # Web sitesi sayfalari
+    "indir": "https://firstmyko.com/indir",
+    "kayit": "https://firstmyko.com/kayit",
+    "baslangic": "https://firstmyko.com/baslangic",
+    "siralama": "https://firstmyko.com/siralamalar/oyuncu",
+    "gunluk_gorevler": "https://firstmyko.com/oyuncu-rehberi/gunluk-gorevler",
+    "upgrade_kayitlari": "https://firstmyko.com/oyuncu-rehberi/upgrade-kayitlari",
+    "upgrade_oranlari": "https://firstmyko.com/oyuncu-rehberi/upgrade-oranlari",
+    "pus_itemleri": "https://firstmyko.com/oyuncu-rehberi/pus-itemleri",
+    "kutu_gem": "https://firstmyko.com/oyuncu-rehberi/kutu-gem-droplari",
+    # Forum kategorileri (one cikan)
+    "duyurular": "https://firstmyko.net/index.php?forums/duyurular.9/",
     "yenilikler": "https://firstmyko.net/index.php?forums/yenilikler-ve-detaylari.10/",
+    "eventler": "https://firstmyko.net/index.php?forums/oyun-ici-eventler.11/",
     "pus": "https://firstmyko.net/index.php?forums/power-up-store.12/",
     "rehber": "https://firstmyko.net/index.php?forums/firstmyko-oyun-rehberi.37/",
+    "master_gorev": "https://firstmyko.net/index.php?forums/master-ve-skill-gorevleri.14/",
+    "hata_cozum": "https://firstmyko.net/index.php?forums/hata-ve-cozumler.15/",
+    "hata_en": "https://firstmyko.net/index.php?forums/errors-and-solutions-errores-y-soluciones.34/",
+    "game_guide_en": "https://firstmyko.net/index.php?forums/firstmyko-game-guide.38/",
 }
 
-FORUMS = [
-    {
-        "id": "10",
-        "name": "Yenilikler ve Detayları",
-        "url": LINKS["yenilikler"],
-        "rss": "https://firstmyko.net/index.php?forums/yenilikler-ve-detaylari.10/index.rss",
-    },
-    {
-        "id": "12",
-        "name": "Power UP Store",
-        "url": LINKS["pus"],
-        "rss": "https://firstmyko.net/index.php?forums/power-up-store.12/index.rss",
-    },
-    {
-        "id": "37",
-        "name": "FİRSTMYKO OYUN REHBERİ",
-        "url": LINKS["rehber"],
-        "rss": "https://firstmyko.net/index.php?forums/firstmyko-oyun-rehberi.37/index.rss",
-    },
-]
+FORUMS = build_forums_sync_list()
 
 BRAND_COLOR = 0x44F880
