@@ -39,10 +39,27 @@ ANNOUNCEMENTS_CHANNEL_ID = _env_int("ANNOUNCEMENTS_CHANNEL_ID")
 INTRO_CHANNEL_ID = _env_int("INTRO_CHANNEL_ID")
 ADMIN_ROLE_ID = _env_int("ADMIN_ROLE_ID")
 
-# OpenAI (yapay zeka cevaplar)
+# Yapay zeka (OpenAI veya Google Gemini)
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_MODEL = (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
-AI_ENABLED = bool(OPENAI_API_KEY)
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
+GEMINI_MODEL = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+AI_PROVIDER = (os.getenv("AI_PROVIDER") or "auto").strip().lower()
+
+if AI_PROVIDER == "gemini":
+    AI_ENGINE = "gemini" if GEMINI_API_KEY else None
+elif AI_PROVIDER == "openai":
+    AI_ENGINE = "openai" if OPENAI_API_KEY else None
+else:
+    # auto: Gemini oncelikli (ucretsiz kota genelde daha uygun)
+    if GEMINI_API_KEY:
+        AI_ENGINE = "gemini"
+    elif OPENAI_API_KEY:
+        AI_ENGINE = "openai"
+    else:
+        AI_ENGINE = None
+
+AI_ENABLED = AI_ENGINE is not None
 
 # Forum senkron
 FORUM_SYNC_INTERVAL_HOURS = max(_env_float("FORUM_SYNC_INTERVAL_HOURS", 2.0), 0.25)
