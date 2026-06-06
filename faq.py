@@ -56,9 +56,21 @@ FAQ_ENTRIES: list[dict] = [
         "answer_en": "Congratulations! Please share your **in-game nick** and **account name** with staff.",
     },
     {
-        "match": ("carkifelek var", "carkifelek mevcut", "wheel of fun var"),
-        "answer_tr": f"Evet, **Carkifelek** mevcuttur! Web sitemizden ulasabilirsiniz:\n{LINKS['website']}",
-        "answer_en": f"Yes! **Wheel of Fun** is available on our website:\n{LINKS['website']}",
+        "match": (
+            "carkifelek", "carki felek", "carkifeleg", "wheel of fun",
+            "carkifelek var", "carkifelek mevcut", "carkifelek wam",
+        ),
+        "answer_tr": (
+            f"Evet, **Carkifelek (Wheel of Fun)** mevcuttur!\n"
+            f"Web sitemizden ulasabilirsiniz: {LINKS['website']}\n"
+            f"Detaylar: {LINKS['eventler']}"
+        ),
+        "answer_en": (
+            f"Yes! **Wheel of Fun** is available!\n"
+            f"Visit: {LINKS['website']}\n"
+            f"Events: {LINKS['eventler']}"
+        ),
+        "link": {"title": "Carkifelek / Wheel of Fun", "url": LINKS["website"], "forum": "Web", "content": ""},
     },
     {
         "match": ("oyun ici soru", "ticket", "destek talebi", "sorunum var", "yardim lazim yetkili"),
@@ -106,10 +118,21 @@ def match_faq(message: str) -> tuple[str | None, dict | None]:
     lang = detect_language(message)
     greeting = GREETING.get(lang, GREETING["tr"])
 
+    # Carkifelek: yazim hatalari (wamri, varmi) FAQ'ye gitmeli, yenilikler degil
+    if "carkifelek" in text or "carki felek" in text or (
+        "carki" in text and any(x in text for x in ("var", "wam", "mevcut", "wheel"))
+    ):
+        for entry in FAQ_ENTRIES:
+            if "carkifelek" in entry["match"]:
+                body = entry.get(f"answer_{lang}") or entry["answer_tr"]
+                link = entry.get("link")
+                return f"{greeting}\n\n{body}", link
+
     for entry in FAQ_ENTRIES:
         if any(m in text for m in entry["match"]):
             body = entry.get(f"answer_{lang}") or entry["answer_tr"]
-            return f"{greeting}\n\n{body}", None
+            link = entry.get("link")
+            return f"{greeting}\n\n{body}", link
 
     web = _match_web_page(text)
     if web:
