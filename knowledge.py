@@ -95,6 +95,53 @@ def search_topics(query: str, limit: int = 5) -> list[dict]:
     return [t for _, t in scored[:limit]]
 
 
+def search_topics_scored(query: str, limit: int = 5) -> tuple[list[dict], float]:
+    """Yerel bilgi tabaninda ara; en iyi skoru da dondur."""
+    kb = load_knowledge()
+    topics = kb.get("topics", [])
+    if not topics:
+        return [], 0.0
+
+    query_tokens = _expand_query_tokens(_tokenize(query))
+    if not query_tokens:
+        return [], 0.0
+
+    query_norm = _normalize(query)
+    scored: list[tuple[float, dict]] = []
+
+    for topic in topics:
+        title = topic.get("title", "")
+        title_norm = _normalize(title)
+        title_tokens = _tokenize(title)
+        content_tokens = _tokenize(topic.get("content", "")[:2500])
+
+        overlap = len(query_tokens & (title_tokens | content_tokens))
+        title_overlap = len(query_tokens & title_tokens)
+        if overlap == 0:
+            continue
+
+        score = float(overlap + title_overlap * 4)
+
+        important = [t for t in query_tokens if len(t) > 3]
+        if important and all(t in title_norm for t in important[:3]):
+            score += 8
+
+        if "upgrade" in query_norm and "upgrade" in title_norm:
+            score += 5
+        if "oran" in query_norm and "oran" in title_norm:
+            score += 4
+        if "master" in query_norm and ("master" in title_norm or "skill" in title_norm):
+            score += 4
+        if "skill" in query_norm and "skill" in title_norm:
+            score += 3
+
+        scored.append((score, topic))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best = scored[0][0] if scored else 0.0
+    return [t for _, t in scored[:limit]], best
+
+
 def format_topic_context(topics: list[dict]) -> str:
     if not topics:
         return "Forum bilgi tabaninda eslesen konu bulunamadi."
