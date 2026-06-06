@@ -46,6 +46,7 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
+# Kullanici basina cooldown (saniye)
 USER_COOLDOWN: dict[int, float] = {}
 COOLDOWN_SECONDS = 15
 
@@ -82,19 +83,27 @@ def _on_cooldown(user_id: int) -> bool:
     return False
 
 
-async def _start_health_server(port: int) -> None:
-    from aiohttp import web
+def _start_health_server(port: int) -> None:
+    """Render/Fly icin HTTP saglik kontrolu (Discord baglanmadan once baslar)."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
 
-    async def health(_request: web.Request) -> web.Response:
-        return web.Response(text="FIRSTMYKO Bot OK")
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"FIRSTMYKO Bot OK")
 
-    app = web.Application()
-    app.router.add_get("/", health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logger.info("Health server port %s", port)
+        def log_message(self, *_args) -> None:
+            pass
+
+    def run() -> None:
+        server = HTTPServer(("0.0.0.0", port), Handler)
+        logger.info("Health server port %s", port)
+        server.serve_forever()
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 @bot.event
@@ -102,10 +111,6 @@ async def on_ready() -> None:
     logger.info("Bot hazir: %s (ID: %s)", bot.user, bot.user.id if bot.user else "?")
     if not forum_sync_loop.is_running():
         forum_sync_loop.start()
-
-    port = int(os.getenv("PORT", "0") or "0")
-    if port > 0:
-        asyncio.create_task(_start_health_server(port))
 
     await bot.change_presence(
         activity=discord.Activity(
@@ -228,6 +233,7 @@ async def on_message(message: discord.Message) -> None:
     if message.content.startswith("!"):
         return
 
+    # Sadece genel sohbet kanalinda otomatik cevap (ayarliysa)
     if GENERAL_CHAT_CHANNEL_ID and message.channel.id != GENERAL_CHAT_CHANNEL_ID:
         return
 
@@ -282,12 +288,22 @@ def main() -> None:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+    port = int((os.getenv("PORT") or "0").strip() or "0")
+    if port > 0:
+        _start_health_server(port)
+        print(f"[OK] Health server port {port}")
+
     if not DISCORD_BOT_TOKEN:
         print("\n[HATA] DISCORD_BOT_TOKEN eksik! Render -> Environment -> ekle\n")
         sys.exit(1)
 
+    if DISCORD_BOT_TOKEN.count(".") != 2:
+        print("\n[HATA] Token formati hatali (3 parca olmali). Developer Portal -> Reset Token\n")
+        sys.exit(1)
+
     print("[OK] Token yuklendi, Discord'a baglaniliyor...")
 
+    # Baglanti testi sadece yerel Windows icin (Render/Linux'ta atla)
     if sys.platform == "win32" and not os.getenv("SKIP_DISCORD_CHECK"):
         try:
             import requests
