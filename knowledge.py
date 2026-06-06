@@ -13,6 +13,18 @@ from firstmyko_bot.config import (
 )
 from firstmyko_bot.forum_sync import load_knowledge
 
+# Soru kelimeleri aramaya eklenmez; konu eslestirmesi icin esanlamlilar
+QUERY_EXPANSIONS: dict[str, tuple[str, ...]] = {
+    "upgrade": ("upgrade", "anvil", "oran", "basma", "scroll", "arti", "item"),
+    "master": ("master", "gorev", "quest", "skill", "level"),
+    "skill": ("skill", "stat", "yetenek", "master", "gorev"),
+    "cekilis": ("cekilis", "hediye", "giveaway", "odul", "etkinlik"),
+    "pus": ("pus", "power", "store", "market", "cash"),
+    "party": ("party", "grup", "takim", "lider"),
+    "merchant": ("merchant", "pazar", "market", "satis"),
+    "minor": ("minor", "assassin", "pot", "combo"),
+}
+
 
 def _normalize(text: str) -> str:
     text = text.lower().strip()
@@ -25,25 +37,56 @@ def _tokenize(text: str) -> set[str]:
     return {w for w in words if len(w) > 2}
 
 
+def _expand_query_tokens(query_tokens: set[str]) -> set[str]:
+    expanded = set(query_tokens)
+    for token in list(query_tokens):
+        for _key, syns in QUERY_EXPANSIONS.items():
+            if token in syns or any(s in token for s in syns if len(s) > 3):
+                expanded.update(syns)
+    return expanded
+
+
 def search_topics(query: str, limit: int = 5) -> list[dict]:
     kb = load_knowledge()
     topics = kb.get("topics", [])
     if not topics:
         return []
 
-    query_tokens = _tokenize(query)
+    query_tokens = _expand_query_tokens(_tokenize(query))
     if not query_tokens:
         return []
 
+    query_norm = _normalize(query)
     scored: list[tuple[float, dict]] = []
+
     for topic in topics:
-        title_tokens = _tokenize(topic.get("title", ""))
-        content_tokens = _tokenize(topic.get("content", "")[:2000])
+        title = topic.get("title", "")
+        title_norm = _normalize(title)
+        title_tokens = _tokenize(title)
+        content_tokens = _tokenize(topic.get("content", "")[:2500])
+
         overlap = len(query_tokens & (title_tokens | content_tokens))
         title_overlap = len(query_tokens & title_tokens)
         if overlap == 0:
             continue
-        score = overlap + title_overlap * 2
+
+        score = float(overlap + title_overlap * 4)
+
+        # Baslikta tum onemli kelimeler varsa bonus
+        important = [t for t in query_tokens if len(t) > 3]
+        if important and all(t in title_norm for t in important[:3]):
+            score += 8
+
+        # "upgrade oran" gibi ifadeler
+        if "upgrade" in query_norm and "upgrade" in title_norm:
+            score += 5
+        if "oran" in query_norm and "oran" in title_norm:
+            score += 4
+        if "master" in query_norm and ("master" in title_norm or "skill" in title_norm):
+            score += 4
+        if "skill" in query_norm and "skill" in title_norm:
+            score += 3
+
         scored.append((score, topic))
 
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -68,10 +111,10 @@ def format_topic_context(topics: list[dict]) -> str:
 
 
 def detect_quick_reply(message: str) -> str | None:
-    """AI kullanmadan hizli cevap gerektiren mesajlar."""
+    """Sadece sosyal/cekilis gibi anlik yonlendirmeler (forum aramasi gerektirmez)."""
     text = _normalize(message)
 
-    giveaway_words = ("cekilis", "çekiliş", "hediye", "giveaway", "odul", "ödül")
+    giveaway_words = ("cekilis", "hediye", "giveaway", "odul")
     if any(w in text for w in giveaway_words):
         lines = [
             "**FIRSTMYKO cekilis ve etkinlikler:**",
@@ -80,40 +123,28 @@ def detect_quick_reply(message: str) -> str | None:
         ]
         if GIVEAWAY_CHANNEL_ID:
             lines.append(f"Discord cekilis kanali: <#{GIVEAWAY_CHANNEL_ID}>")
-        lines.append(f"\nDetaylar icin forum: {LINKS['forum']}")
         return "\n".join(lines)
 
-    announcement_words = ("duyuru", "announcement", "haber", "acilis", "açılış", "guncelleme", "güncelleme")
-    if any(w in text for w in announcement_words):
+    if any(w in text for w in ("instagram", "insta", "ig")):
+        return f"**Instagram:** {LINKS['instagram']}"
+    if any(w in text for w in ("whatsapp", "wp")):
+        return f"**WhatsApp:** {LINKS['whatsapp']}"
+    if any(w in text for w in ("facebook", "fb")):
+        return f"**Facebook:** {LINKS['facebook']}"
+
+    if any(w in text for w in ("duyuru", "announcement", "haber")):
         lines = ["**FIRSTMYKO duyurulari:**"]
         if ANNOUNCEMENTS_CHANNEL_ID:
-            lines.append(f"Discord duyurular: <#{ANNOUNCEMENTS_CHANNEL_ID}>")
+            lines.append(f"Discord: <#{ANNOUNCEMENTS_CHANNEL_ID}>")
         lines.append(f"Forum: {LINKS['forum']}")
         return "\n".join(lines)
 
-    intro_words = ("tanitim", "tanıtım", "sunucu nedir", "firstmyko nedir", "oyun hakkinda", "oyun hakkında")
-    if any(w in text for w in intro_words):
-        lines = ["**FIRSTMYKO V1098 Old-USKO tanitim:**"]
+    if any(w in text for w in ("tanitim", "sunucu nedir", "firstmyko nedir")):
+        lines = ["**FIRSTMYKO V1098 tanitim:**"]
         if INTRO_CHANNEL_ID:
-            lines.append(f"Tanıtım kanali: <#{INTRO_CHANNEL_ID}>")
+            lines.append(f"Tanıtım: <#{INTRO_CHANNEL_ID}>")
         lines.append(f"Web: {LINKS['website']}")
-        lines.append(f"Forum: {LINKS['forum']}")
         return "\n".join(lines)
-
-    link_map = {
-        ("forum", "konu", "rehber"): LINKS["forum"],
-        ("web", "site", "indir", "download", "oyunu indir"): LINKS["website"],
-        ("instagram", "insta", "ig"): LINKS["instagram"],
-        ("facebook", "fb"): LINKS["facebook"],
-        ("whatsapp", "wp"): LINKS["whatsapp"],
-        ("yenilik", "guncelleme", "update", "ozellik"): LINKS["yenilikler"],
-        ("pus", "power up", "powerup", "store", "market"): LINKS["pus"],
-        ("upgrade", "anvil", "+ basma", "basma oran"): LINKS["yenilikler"],
-    }
-
-    for keywords, url in link_map.items():
-        if any(k in text for k in keywords):
-            return f"**FIRSTMYKO** — ilgili sayfa:\n{url}\n\nDetayli bilgi: {LINKS['forum']}"
 
     return None
 
@@ -125,9 +156,10 @@ def is_question(message: str) -> bool:
     if text.endswith("?"):
         return True
     starters = (
-        "nasıl", "nasil", "nedir", "ne kadar", "nerede", "kaç", "kac",
+        "nasıl", "nasil", "nedir", "ne kadar", "nerede", "kaç", "kac", "neler",
         "kim", "hangi", "var mı", "var mi", "ne zaman", "acaba",
-        "how", "what", "where", "when", "why",
+        "how", "what", "where", "when", "why", "hello", "help",
+        "hola", "como", "que", "donde", "cuando",
     )
     lower = _normalize(text)
     return any(lower.startswith(s) or f" {s}" in lower for s in starters)
