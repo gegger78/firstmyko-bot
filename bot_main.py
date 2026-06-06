@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
 
+from firstmyko_bot.ai_responder import ai_provider_label
 from firstmyko_bot.config import (
     ADMIN_ROLE_ID,
-    AI_ENABLED,
     ANNOUNCEMENTS_CHANNEL_ID,
     BRAND_COLOR,
     DISCORD_BOT_TOKEN,
@@ -170,7 +170,7 @@ async def cmd_help(ctx: commands.Context) -> None:
         ),
         inline=False,
     )
-    ai_status = "Aktif (OpenAI)" if AI_ENABLED else "Kapali — OPENAI_API_KEY ekleyin"
+    ai_status = ai_provider_label()
     embed.set_footer(text=f"AI: {ai_status}")
     await ctx.send(embed=embed)
 
@@ -178,18 +178,20 @@ async def cmd_help(ctx: commands.Context) -> None:
 @bot.command(name="linkler", aliases=["links"])
 async def cmd_links(ctx: commands.Context) -> None:
     embed = discord.Embed(title="FIRSTMYKO Resmi Linkler", color=BRAND_COLOR)
-    embed.add_field(name="Forum", value=LINKS["forum"], inline=False)
     embed.add_field(name="Web Sitesi", value=LINKS["website"], inline=False)
-    embed.add_field(name="Instagram", value=LINKS["instagram"], inline=False)
-    embed.add_field(name="Facebook", value=LINKS["facebook"], inline=False)
-    embed.add_field(name="WhatsApp", value=LINKS["whatsapp"], inline=False)
-    embed.add_field(name="Yenilikler", value=LINKS["yenilikler"], inline=False)
-    embed.add_field(name="Power UP Store", value=LINKS["pus"], inline=False)
-    embed.add_field(name="Oyun Rehberi", value=LINKS["rehber"], inline=False)
-    if INTRO_CHANNEL_ID:
-        embed.add_field(name="Firstmyko Tanitim", value=f"<#{INTRO_CHANNEL_ID}>", inline=False)
-    if ANNOUNCEMENTS_CHANNEL_ID:
-        embed.add_field(name="Duyurular", value=f"<#{ANNOUNCEMENTS_CHANNEL_ID}>", inline=False)
+    embed.add_field(name="Oyunu Indir", value=LINKS["indir"], inline=True)
+    embed.add_field(name="Kayit Ol", value=LINKS["kayit"], inline=True)
+    embed.add_field(name="Upgrade Oranlari", value=LINKS["upgrade_oranlari"], inline=True)
+    embed.add_field(name="PUS Itemleri", value=LINKS["pus_itemleri"], inline=True)
+    embed.add_field(name="Gunluk Gorevler", value=LINKS["gunluk_gorevler"], inline=True)
+    embed.add_field(name="E-PIN Bayi", value=LINKS["epin_bayi"], inline=True)
+    embed.add_field(name="Forum", value=LINKS["forum"], inline=False)
+    embed.add_field(name="Yenilikler", value=LINKS["yenilikler"], inline=True)
+    embed.add_field(name="Hata ve Cozumler", value=LINKS["hata_cozum"], inline=True)
+    embed.add_field(name="Master Gorevleri", value=LINKS["master_gorev"], inline=True)
+    embed.add_field(name="Eventler", value=LINKS["eventler"], inline=True)
+    embed.add_field(name="Instagram", value=LINKS["instagram"], inline=True)
+    embed.add_field(name="WhatsApp", value=LINKS["whatsapp"], inline=True)
     if GIVEAWAY_CHANNEL_ID:
         embed.add_field(name="Cekilis Kanali", value=f"<#{GIVEAWAY_CHANNEL_ID}>", inline=False)
     await ctx.send(embed=embed)
