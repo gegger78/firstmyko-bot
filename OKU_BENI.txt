@@ -1,0 +1,38 @@
+========================================
+  FIRSTMYKO BOT — GITHUB YUKLEME PAKETI
+========================================
+
+Bu klasordeki HER SEYI GitHub'a yukle.
+Baska klasorlerden dosya ekleme!
+
+YUKLEME ADIMI:
+1. github.com/gegger78/firstmyko-bot ac
+2. "Add file" -> "Upload files"
+3. Bu GITHUB_YUKLE klasorunun ICINDEKI tum dosyalari surukle
+   (firstmyko_bot klasoru dahil)
+4. "Commit changes" tikla
+
+SONRA RENDER:
+1. render.com -> New -> Web Services
+2. gegger78/firstmyko-bot reposunu sec
+3. Runtime: Docker
+4. Environment Variables ekle:
+   DISCORD_BOT_TOKEN = bot tokenin
+   OPENAI_API_KEY = openai keyin
+5. Deploy
+
+ICINDEKILER:
+  Dockerfile          -> Render icin
+  render.yaml         -> Render ayarlari
+  requirements.txt    -> Python paketleri
+  run_firstmyko_bot.py -> Bot baslatici
+  check_discord_connection.py
+  firstmyko_bot/      -> Bot kodlari
+  .gitignore
+
+BURADA OLMAYAN (yukleme):
+  .env                -> SIFRELER (Render'da Variables'a yaz)
+  instagram bot dosyalari
+  session.json
+
+========================================

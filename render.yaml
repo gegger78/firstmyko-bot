@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: firstmyko-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: WELCOME_CHANNEL_ID
+        value: "1302386230918647878"
+      - key: GENERAL_CHAT_CHANNEL_ID
+        value: "1302386230918647878"
+      - key: GIVEAWAY_CHANNEL_ID
+        value: "1302389019853979709"
+      - key: ANNOUNCEMENTS_CHANNEL_ID
+        value: "1302397570643136522"
+      - key: INTRO_CHANNEL_ID
+        value: "1302377523958513734"
+      - key: FORUM_SYNC_INTERVAL_HOURS
+        value: "2"

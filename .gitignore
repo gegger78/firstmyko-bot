@@ -1,0 +1,9 @@
+.env
+session.json
+follow_log.json
+discord_invite_log.json
+data/
+__pycache__/
+*.pyc
+.venv/
+venv/
