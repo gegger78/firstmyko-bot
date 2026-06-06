@@ -64,6 +64,12 @@ AI_ENABLED = AI_ENGINE is not None
 # Forum senkron
 FORUM_SYNC_INTERVAL_HOURS = max(_env_float("FORUM_SYNC_INTERVAL_HOURS", 2.0), 0.25)
 
+# Canli forum arama (yavaslik kaynagi — varsayilan: sadece yerel sonuc zayifsa)
+LIVE_FORUM_SEARCH = (os.getenv("LIVE_FORUM_SEARCH") or "auto").strip().lower()
+LIVE_FORUM_MAX_CATEGORIES = max(_env_int("LIVE_FORUM_MAX_CATEGORIES", 4), 1)
+LIVE_FORUM_TIMEOUT = max(_env_int("LIVE_FORUM_TIMEOUT", 8), 3)
+LOCAL_MATCH_MIN_SCORE = max(_env_float("LOCAL_MATCH_MIN_SCORE", 6.0), 1.0)
+
 from firstmyko_bot.forum_catalog import build_forums_sync_list
 
 # Linkler
