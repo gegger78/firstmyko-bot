@@ -46,7 +46,6 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
-# Kullanici basina cooldown (saniye)
 USER_COOLDOWN: dict[int, float] = {}
 COOLDOWN_SECONDS = 15
 
@@ -84,7 +83,6 @@ def _on_cooldown(user_id: int) -> bool:
 
 
 async def _start_health_server(port: int) -> None:
-    """Render/Fly gibi platformlar icin basit saglik kontrolu."""
     from aiohttp import web
 
     async def health(_request: web.Request) -> web.Response:
@@ -230,7 +228,6 @@ async def on_message(message: discord.Message) -> None:
     if message.content.startswith("!"):
         return
 
-    # Sadece genel sohbet kanalinda otomatik cevap (ayarliysa)
     if GENERAL_CHAT_CHANNEL_ID and message.channel.id != GENERAL_CHAT_CHANNEL_ID:
         return
 
@@ -286,38 +283,28 @@ def main() -> None:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     if not DISCORD_BOT_TOKEN:
-        print("\n[HATA] .env dosyasinda DISCORD_BOT_TOKEN tanimlayin.")
-        print("       Bot token alma: FIRSTMYKO_BOT_README.md\n")
+        print("\n[HATA] DISCORD_BOT_TOKEN eksik! Render -> Environment -> ekle\n")
         sys.exit(1)
 
-    skip_check = os.getenv("SKIP_DISCORD_CHECK", "").strip().lower() in ("1", "true", "yes")
+    print("[OK] Token yuklendi, Discord'a baglaniliyor...")
 
-    if not skip_check:
+    if sys.platform == "win32" and not os.getenv("SKIP_DISCORD_CHECK"):
         try:
             import requests
-
             requests.get("https://discord.com/api/v10/gateway", timeout=10)
         except requests.exceptions.RequestException:
-            print("\n" + "=" * 55)
-            print("  DISCORD BAGLANTI HATASI")
-            print("=" * 55)
-            print("\nBilgisayariniz discord.com'a baglanamiyor.")
-            print("Bot kodu hazir — sorun ag/antivirus/ISP kaynakli.\n")
-            print("Hizli test (tarayici):")
-            print("  https://discord.com/api/v10/gateway\n")
-            print("Yerel cozum:")
-            print("  1. firewall_izin_ver.bat (Yonetici olarak calistir)")
-            print("  2. Antivirus HTTPS taramasini kapat")
-            print("  3. VPN dene\n")
-            print("En garanti cozum — bulutta calistir:")
-            print("  DEPLOY.md dosyasina bak (Railway, ucretsiz deneme)\n")
-            print("=" * 55 + "\n")
+            print("\n[HATA] Bilgisayariniz discord.com'a baglanamiyor.")
+            print("       Bulutta calistir (Render) veya VPN/antivirus dene.\n")
             sys.exit(1)
 
     try:
         bot.run(DISCORD_BOT_TOKEN)
     except discord.LoginFailure:
-        print("\n[HATA] Gecersiz bot token. Developer Portal'dan yeni token al.\n")
+        print("\n[HATA] Gecersiz bot token. Developer Portal -> Reset Token\n")
+        sys.exit(1)
+    except Exception:
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
