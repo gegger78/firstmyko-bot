@@ -17,7 +17,8 @@ from firstmyko_bot.i18n import (
     TOPIC_FOUND,
     detect_language,
 )
-from firstmyko_bot.knowledge import search_topics
+from firstmyko_bot.config import LOCAL_MATCH_MIN_SCORE, LIVE_FORUM_SEARCH
+from firstmyko_bot.knowledge import search_topics_scored
 
 
 def _extract_summary(content: str, max_len: int = 350) -> str:
@@ -100,9 +101,16 @@ def build_player_response(question: str) -> dict:
     if faq_body:
         return _build_embed_dict(lang, question, faq_body, faq_link)
 
-    # 2) Forum konu arama
-    local = search_topics(question, limit=5)
-    live = search_forum_live(question, limit=5)
+    # 2) Yerel bilgi tabani (milisaniyeler)
+    local, local_score = search_topics_scored(question, limit=5)
+
+    # 3) Canli forum — sadece gerektiginde (36 forum taramasi yavaslatiyordu)
+    live: list[dict] = []
+    use_live = LIVE_FORUM_SEARCH in ("1", "true", "yes", "on")
+    if LIVE_FORUM_SEARCH == "auto":
+        use_live = local_score < LOCAL_MATCH_MIN_SCORE
+    if use_live:
+        live = search_forum_live(question, limit=5)
 
     # En iyi eslesmeyi birlestir (canli arama oncelikli)
     seen: set[str] = set()
@@ -122,8 +130,8 @@ def build_player_response(question: str) -> dict:
         if summary:
             body += f"\n\n{summary}"
 
-        # Guclu eslesme: AI olmadan hizli cevap (kota tasarrufu)
-        if summary or not best.get("content"):
+        # Guclu eslesme: AI olmadan hizli cevap (kota + gecikme tasarrufu)
+        if summary or not best.get("content") or local_score >= LOCAL_MATCH_MIN_SCORE:
             return _build_embed_dict(lang, question, body, best, rest)
 
         ai_body, _ = generate_answer(question, lang=lang, topics=topics)
